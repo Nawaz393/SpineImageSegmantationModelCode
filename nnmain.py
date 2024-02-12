@@ -142,10 +142,11 @@ def main(index):
         train_losses.extend(batch_train_losses)
         val_losses.extend(batch_val_losses)
 
-        print("-" * 30)
-        print(f"Train Loss EPOCH {epoch + 1}: {train_loss:.4f}")
-        print(f"Valid Loss EPOCH {epoch + 1}: {val_loss:.4f}")
-        print("-" * 30)
+        if xm.is_master_ordinal():
+            print("-" * 30)
+            print(f"Train Loss EPOCH {epoch + 1}: {train_loss:.4f}")
+            print(f"Valid Loss EPOCH {epoch + 1}: {val_loss:.4f}")
+            print("-" * 30)
 
         # plot_epoch_losses(batch_train_losses, batch_val_losses, epoch + 1)
 
