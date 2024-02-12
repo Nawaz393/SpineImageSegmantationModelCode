@@ -11,7 +11,7 @@ from torch import optim, nn
 import os
 from spine_dataset import SpineDataset
 from unet import UNet
-
+from torch.nn.parallel import DistributedDataParallel as DDP  # Added for DDP
 
 def train_epoch(model, train_loader, optimizer, criterion, device):
     model.train()
@@ -37,7 +37,6 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
     avg_loss = running_loss / len(train_loader)
 
     return avg_loss, batch_train_losses
-
 
 def validate_epoch(model, val_loader, criterion, device):
     model.eval()
@@ -85,7 +84,7 @@ def save_losses_to_excel(losses, file_path):
     df.to_excel(file_path, index=False)
 
 
-def main(index):
+def main(index, flags):
     LEARNING_RATE = 3e-4
     BATCH_SIZE = 64
     EPOCHS = 10
@@ -122,14 +121,15 @@ def main(index):
     train_loader = parallel_loader.per_device_loader(device)
     parallel_loader_val = pl.ParallelLoader(val_loader, [device])
     val_loader = parallel_loader_val.per_device_loader(device)
+
+    # Simplified model initialization
     model = UNet(in_channels=1, num_classes=1).to(device)
+
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
 
     train_losses = []
     val_losses = []
-    train_accuracies = []
-    val_accuracies = []
 
     for epoch in tqdm(range(EPOCHS)):
         train_loss, batch_train_losses = train_epoch(
@@ -139,8 +139,6 @@ def main(index):
 
         train_losses.extend(batch_train_losses)
         val_losses.extend(batch_val_losses)
-        # train_accuracies.append(train_accuracy)
-        # val_accuracies.append(val_accuracy)
 
         print("-" * 30)
         print(f"Train Loss EPOCH {epoch + 1}: {train_loss:.4f}")
@@ -178,12 +176,14 @@ def main(index):
 
     xm.save(model.state_dict(), MODEL_SAVE_PATH)
 
-
 if __name__ == "__main__":
     # os.environ['PJRT_DEVICE'] = 'TPU'
     print("training Started.....")
     xmp.spawn(
         main,
         args=(),
+        nprocs=8,  # Set the number of processes based on your requirements
+        start_method='fork',  # Use 'fork' start method for XLA
+        # Set other parameters as needed
     )
     print("training completed.....")
