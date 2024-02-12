@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from torch import optim, nn
 import os
+from spine_dataset import SpineDataset
+from unet import UNet
 
 
 def train_epoch(model, train_loader, optimizer, criterion, device):
@@ -141,10 +143,8 @@ def main(index):
         # val_accuracies.append(val_accuracy)
 
         print("-" * 30)
-        print(f"Train Loss EPOCH {
-              epoch + 1}: {train_loss:.4f} | Accuracy: {train_accuracy:.4f}")
-        print(f"Valid Loss EPOCH {
-              epoch + 1}: {val_loss:.4f} | Accuracy: {val_accuracy:.4f}")
+        print(f"Train Loss EPOCH {epoch + 1}: {train_loss:.4f}")
+        print(f"Valid Loss EPOCH {epoch + 1}: {val_loss:.4f}")
         print("-" * 30)
 
         plot_epoch_losses(batch_train_losses, batch_val_losses, epoch + 1)
