@@ -177,9 +177,13 @@ def main(index):
     plt.show()
 
     xm.save(model.state_dict(), MODEL_SAVE_PATH)
-    if __name__ == "__main__":
-        os.environ['PJRT_DEVICE'] = 'TPU'
-        xmp.spawn(
-            main,
-            args=(),
-        )
+
+
+if __name__ == "__main__":
+    # os.environ['PJRT_DEVICE'] = 'TPU'
+    print("training Started.....")
+    xmp.spawn(
+        main,
+        args=(),
+    )
+    print("training completed.....")
