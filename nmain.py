@@ -12,14 +12,26 @@ import os
 from spine_dataset import SpineDataset
 from unet import UNet
 from torch.nn.parallel import DistributedDataParallel as DDP  # Added for DDP
+import numpy as np
 
-def train_epoch(model, train_loader, optimizer, criterion, device):
+
+def save_batch_losses_to_excel(all_batch_losses, file_path):
+    df = pd.DataFrame({'Batch Losses': all_batch_losses})
+    df.to_excel(file_path, index=False, header=False,
+                mode='a')  # Append to the existing file
+
+
+def save_epoch_loss_to_excel(epoch_loss, file_path):
+    df = pd.DataFrame({'Epoch Loss': [epoch_loss]})
+    df.to_excel(file_path, index=False, header=False, mode='a')
+
+
+def train_epoch(model, train_loader, optimizer, criterion, device, epoch):
     model.train()
     running_loss = 0
-    running_accuracy = 0
     batch_train_losses = []
 
-    for img_mask in tqdm(train_loader):
+    for idx, img_mask in enumerate(train_loader):
         img, mask = img_mask[0].float().to(
             device), img_mask[1].float().to(device)
 
@@ -36,16 +48,24 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
 
     avg_loss = running_loss / len(train_loader)
 
-    return avg_loss, batch_train_losses
+    # Gather losses from all processes and compute the mean
+    all_batch_train_losses = xm.mesh_reduce(
+        'train_losses', batch_train_losses, np.mean)
+    avg_loss = xm.mesh_reduce('avg_train_loss', avg_loss, np.mean)
 
-def validate_epoch(model, val_loader, criterion, device):
+    # Save all batch losses to Excel file for this epoch
+    save_batch_losses_to_excel(all_batch_train_losses, 'batch_losses.xlsx')
+
+    return avg_loss, all_batch_train_losses
+
+
+def validate_epoch(model, val_loader, criterion, device, epoch):
     model.eval()
     running_loss = 0
-    running_accuracy = 0
     batch_val_losses = []
 
     with torch.no_grad():
-        for img_mask in tqdm(val_loader):
+        for idx, img_mask in enumerate(val_loader):
             img, mask = img_mask[0].float().to(
                 device), img_mask[1].float().to(device)
 
@@ -57,7 +77,15 @@ def validate_epoch(model, val_loader, criterion, device):
 
     avg_loss = running_loss / len(val_loader)
 
-    return avg_loss, batch_val_losses
+    # Gather losses from all processes and compute the mean
+    all_batch_val_losses = xm.mesh_reduce(
+        'val_losses', batch_val_losses, np.mean)
+    avg_loss = xm.mesh_reduce('avg_val_loss', avg_loss, np.mean)
+
+    # Save all batch losses to Excel file for this epoch
+    save_batch_losses_to_excel(all_batch_val_losses, 'batch_losses.xlsx')
+
+    return avg_loss, all_batch_val_losses
 
 
 def plot_epoch_losses(train_losses, val_losses, epoch):
@@ -84,7 +112,7 @@ def save_losses_to_excel(losses, file_path):
     df.to_excel(file_path, index=False)
 
 
-def main(index, flags):
+def main(index):
     LEARNING_RATE = 3e-4
     BATCH_SIZE = 64
     EPOCHS = 10
@@ -128,53 +156,28 @@ def main(index, flags):
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
 
-    train_losses = []
-    val_losses = []
-
     for epoch in tqdm(range(EPOCHS)):
-        train_loss, batch_train_losses = train_epoch(
-            model, train_loader, optimizer, criterion, device)
-        val_loss,  batch_val_losses = validate_epoch(
-            model, val_loader, criterion, device)
+        train_loss, all_batch_train_losses = train_epoch(
+            model, train_loader, optimizer, criterion, device, epoch)
+        val_loss,  all_batch_val_losses = validate_epoch(
+            model, val_loader, criterion, device, epoch)
 
-        train_losses.extend(batch_train_losses)
-        val_losses.extend(batch_val_losses)
+        if xm.is_master_ordinal():
+            # Print information only once from the master process
+            print("-" * 30)
+            print(f"Train Loss EPOCH {epoch + 1}: {train_loss:.4f}")
+            print(f"Valid Loss EPOCH {epoch + 1}: {val_loss:.4f}")
+            print("-" * 30)
 
-        print("-" * 30)
-        print(f"Train Loss EPOCH {epoch + 1}: {train_loss:.4f}")
-        print(f"Valid Loss EPOCH {epoch + 1}: {val_loss:.4f}")
-        print("-" * 30)
+            # Save average losses across epochs to Excel file
+            save_epoch_loss_to_excel(train_loss, 'epoch_losses.xlsx')
+            save_epoch_loss_to_excel(val_loss, 'epoch_losses.xlsx')
 
-        plot_epoch_losses(batch_train_losses, batch_val_losses, epoch + 1)
+    # Save additional metrics or model state if needed
+    # For example, you can save accuracy, model parameters, etc.
+    if xm.is_master_ordinal():
+        xm.save(model.state_dict(), MODEL_SAVE_PATH)
 
-    # Save all batch losses to Excel file
-    save_losses_to_excel(train_losses, 'all_batch_losses.xlsx')
-
-    # Save average losses across epochs to Excel file
-    avg_train_losses = [
-        sum(train_losses) / len(train_losses)] * len(train_losses)
-    avg_val_losses = [sum(val_losses) / len(val_losses)] * len(val_losses)
-    save_losses_to_excel(avg_train_losses, 'avg_train_losses.xlsx')
-    save_losses_to_excel(avg_val_losses, 'avg_val_losses.xlsx')
-
-    plt.figure(figsize=(12, 4))
-
-    plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Training Loss')
-    plt.xlabel('Batch Index')
-    plt.ylabel('Loss')
-    plt.title('All Batch Training Loss')
-
-    plt.subplot(1, 2, 2)
-    plt.plot(val_losses, label='Validation Loss')
-    plt.xlabel('Batch Index')
-    plt.ylabel('Loss')
-    plt.title('All Batch Validation Loss')
-
-    plt.tight_layout()
-    plt.show()
-
-    xm.save(model.state_dict(), MODEL_SAVE_PATH)
 
 if __name__ == "__main__":
     # os.environ['PJRT_DEVICE'] = 'TPU'
@@ -182,8 +185,7 @@ if __name__ == "__main__":
     xmp.spawn(
         main,
         args=(),
-        nprocs=8,  # Set the number of processes based on your requirements
-        start_method='fork',  # Use 'fork' start method for XLA
-        # Set other parameters as needed
+        start_method='fork',
+
     )
     print("training completed.....")
