@@ -9,9 +9,9 @@ class SpineDataset(Dataset):
         self.root_path = root_path
         if not test:
             self.images = sorted(
-                [root_path + "/processed_data/" + i for i in os.listdir(root_path + "/processed_data/")])
+                [root_path + "/data/" + i for i in os.listdir(root_path + "/data/")])
             self.masks = sorted(
-                [root_path + "/processed_label/" + i for i in os.listdir(root_path + "/processed_label/")])
+                [root_path + "/label/" + i for i in os.listdir(root_path + "/label/")])
         # else:
         #     self.images = sorted([root_path+"/sdata/"+i for i in os.listdir(root_path+"/sdata/")])
         #     self.masks = sorted([root_path+"/slabel/"+i for i in os.listdir(root_path+"/slabel/")])
