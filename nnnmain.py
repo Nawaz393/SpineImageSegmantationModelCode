@@ -86,7 +86,7 @@ def main(index):
     BATCH_SIZE = 64
     EPOCHS = 10
     DATA_PATH = "../SpinePatchesDataset1"
-    MODEL_SAVE_PATH = "./models/SpineSegmentationv3.pth"
+    MODEL_SAVE_PATH = "./models/SpineSegmentationv4.pth"
 
     device = xm.xla_device()
     train_dataset = SpineDataset(DATA_PATH)
@@ -110,12 +110,14 @@ def main(index):
     train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, sampler=train_sampler)
     val_loader = DataLoader(dataset=val_dataset, batch_size=BATCH_SIZE, sampler=val_sampler)
     
-    # parallel_loader = pl.ParallelLoader(train_loader, [device])
-    # train_loader = parallel_loader.per_device_loader(device)
-    # parallel_loader_val = pl.ParallelLoader(val_loader, [device])
-    # val_loader = parallel_loader_val.per_device_loader(device)
+    parallel_loader = pl.ParallelLoader(train_loader, [device])
+    train_loader = parallel_loader.per_device_loader(device)
+    parallel_loader_val = pl.ParallelLoader(val_loader, [device])
+    val_loader = parallel_loader_val.per_device_loader(device)
 
-    model = UNet(in_channels=1, num_classes=1).to(device)
+    model = UNet(in_channels=1, num_classes=1)
+    model = DDP(model, device_ids=[device])  # Use DistributedDataParallel
+
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
 
@@ -123,16 +125,10 @@ def main(index):
     val_losses = []
 
     for epoch in tqdm(range(EPOCHS)):
-        print(f"epoch {epoch}")
-        train_sampler.set_epoch(epoch)
-        val_sampler.set_epoch(epoch)
-
-        # Create new ParallelLoader for each epoch
-        parallel_loader = pl.ParallelLoader(train_loader, [device])
-        train_loader = parallel_loader.per_device_loader(device)
-        parallel_loader_val = pl.ParallelLoader(val_loader, [device])
-        val_loader = parallel_loader_val.per_device_loader(device)
+        model.train()  # Set to training mode
         train_loss, batch_train_losses = train_epoch(model, train_loader, optimizer, criterion, device)
+        
+        model.eval()  # Set to evaluation mode
         val_loss,  batch_val_losses = validate_epoch(model, val_loader, criterion, device)
 
         train_losses.extend(batch_train_losses)
@@ -158,6 +154,7 @@ if __name__ == "__main__":
     xmp.spawn(
         main,
         args=(),
+        nprocs=8,  # Set the number of processes
         start_method='fork',
     )
     print("Training Completed.")
