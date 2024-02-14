@@ -86,7 +86,7 @@ def main(index):
     BATCH_SIZE = 64
     EPOCHS = 10
     DATA_PATH = "../SpinePatchesDataset1"
-    MODEL_SAVE_PATH = "./models/SpineSegmentationv1.pth"
+    MODEL_SAVE_PATH = "./models/SpineSegmentationv3.pth"
 
     device = xm.xla_device()
     train_dataset = SpineDataset(DATA_PATH)
