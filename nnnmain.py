@@ -110,10 +110,10 @@ def main(index):
     train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, sampler=train_sampler)
     val_loader = DataLoader(dataset=val_dataset, batch_size=BATCH_SIZE, sampler=val_sampler)
     
-    parallel_loader = pl.ParallelLoader(train_loader, [device])
-    train_loader = parallel_loader.per_device_loader(device)
-    parallel_loader_val = pl.ParallelLoader(val_loader, [device])
-    val_loader = parallel_loader_val.per_device_loader(device)
+    # parallel_loader = pl.ParallelLoader(train_loader, [device])
+    # train_loader = parallel_loader.per_device_loader(device)
+    # parallel_loader_val = pl.ParallelLoader(val_loader, [device])
+    # val_loader = parallel_loader_val.per_device_loader(device)
 
     model = UNet(in_channels=1, num_classes=1).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
@@ -123,6 +123,15 @@ def main(index):
     val_losses = []
 
     for epoch in tqdm(range(EPOCHS)):
+        print(f"epoch {epoch}")
+        train_sampler.set_epoch(epoch)
+        val_sampler.set_epoch(epoch)
+
+        # Create new ParallelLoader for each epoch
+        parallel_loader = pl.ParallelLoader(train_loader, [device])
+        train_loader = parallel_loader.per_device_loader(device)
+        parallel_loader_val = pl.ParallelLoader(val_loader, [device])
+        val_loader = parallel_loader_val.per_device_loader(device)
         train_loss, batch_train_losses = train_epoch(model, train_loader, optimizer, criterion, device)
         val_loss,  batch_val_losses = validate_epoch(model, val_loader, criterion, device)
 
