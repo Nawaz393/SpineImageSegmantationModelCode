@@ -3,7 +3,7 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.distributed.parallel_loader as pl
-from torch_xla import runtime as xr
+# from torch_xla import runtime as xr
 import torch.distributed as dist
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
@@ -91,7 +91,7 @@ def main(index):
     EPOCHS = 10
     DATA_PATH = "../SpinePatchesDataset1"
     MODEL_SAVE_PATH = "./models/SpineSegmentationv5.pth"
-    dist.init_process_group('xla', init_method='xla://')
+    # dist.init_process_group('xla', init_method='xla://')
 
     device = xm.xla_device()
     train_dataset = SpineDataset(DATA_PATH)
@@ -127,8 +127,8 @@ def main(index):
     val_loader = pl.MpDeviceLoader(val_loader, device)
     model = UNet(in_channels=1, num_classes=1)
     # # Use DistributedDataParallel
-    if xr.using_pjrt():
-        xm.broadcast_master_param(model)
+  
+    xm.broadcast_master_param(model)
     model = DDP(model,gradient_as_bucket_view=True, broadcast_buffers=False) 
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
@@ -167,10 +167,13 @@ def main(index):
 
 if __name__ == "__main__":
     print("Training Started...")
-    xmp.spawn(
-        main,
-        args=(),
-        nprocs=8,  # Set the number of processes
-        start_method='fork',
-    )
+    if xm.is_master_ordinal():
+        print("Initializing distributed training...")
+        xmp.spawn(main,
+                  args=(),
+                  nprocs=4,  # Adjust based on your setup
+                  start_method='fork')
+        dist.init_process_group('xla', init_method='xla://')  # Use 'xla://' for TPUs
+    else:
+        dist.init_process_group() 
     print("Training Completed.")
