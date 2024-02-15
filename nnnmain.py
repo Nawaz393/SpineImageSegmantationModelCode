@@ -20,7 +20,8 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
     batch_train_losses = []
 
     for img_mask in tqdm(train_loader):
-        img, mask = img_mask[0].float().to(device), img_mask[1].float().to(device)
+        img, mask = img_mask[0].float().to(
+            device), img_mask[1].float().to(device)
 
         optimizer.zero_grad()
         y_pred = model(img)
@@ -44,7 +45,8 @@ def validate_epoch(model, val_loader, criterion, device):
 
     with torch.no_grad():
         for img_mask in tqdm(val_loader):
-            img, mask = img_mask[0].float().to(device), img_mask[1].float().to(device)
+            img, mask = img_mask[0].float().to(
+                device), img_mask[1].float().to(device)
 
             y_pred = model(img)
             loss = criterion(y_pred, mask)
@@ -92,7 +94,8 @@ def main(index):
     train_dataset = SpineDataset(DATA_PATH)
 
     generator = torch.Generator().manual_seed(42)
-    train_dataset, val_dataset = random_split(train_dataset, [0.8, 0.2], generator=generator)
+    train_dataset, val_dataset = random_split(
+        train_dataset, [0.8, 0.2], generator=generator)
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(
         train_dataset,
@@ -107,9 +110,11 @@ def main(index):
         shuffle=False
     )
 
-    train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, sampler=train_sampler)
-    val_loader = DataLoader(dataset=val_dataset, batch_size=BATCH_SIZE, sampler=val_sampler)
-    
+    train_loader = DataLoader(dataset=train_dataset,
+                              batch_size=BATCH_SIZE, sampler=train_sampler)
+    val_loader = DataLoader(dataset=val_dataset,
+                            batch_size=BATCH_SIZE, sampler=val_sampler)
+
     # parallel_loader = pl.ParallelLoader(train_loader, [device])
     # train_loader = parallel_loader.per_device_loader(device)
     # parallel_loader_val = pl.ParallelLoader(val_loader, [device])
@@ -118,7 +123,7 @@ def main(index):
     train_loader = pl.MpDeviceLoader(train_loader, device)
     val_loader = pl.MpDeviceLoader(val_loader, device)
     model = UNet(in_channels=1, num_classes=1)
-    model = DDP(model, device_ids=[device])  # Use DistributedDataParallel
+    # model = DDP(model, device_ids=[device])  # Use DistributedDataParallel
 
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
@@ -128,10 +133,12 @@ def main(index):
 
     for epoch in tqdm(range(EPOCHS)):
         model.train()  # Set to training mode
-        train_loss, batch_train_losses = train_epoch(model, train_loader, optimizer, criterion, device)
-        
+        train_loss, batch_train_losses = train_epoch(
+            model, train_loader, optimizer, criterion, device)
+
         model.eval()  # Set to evaluation mode
-        val_loss,  batch_val_losses = validate_epoch(model, val_loader, criterion, device)
+        val_loss,  batch_val_losses = validate_epoch(
+            model, val_loader, criterion, device)
 
         train_losses.extend(batch_train_losses)
         val_losses.extend(batch_val_losses)
@@ -143,7 +150,8 @@ def main(index):
             print("-" * 30)
 
     save_losses_to_excel(train_losses, 'all_batch_losses.xlsx')
-    avg_train_losses = [sum(train_losses) / len(train_losses)] * len(train_losses)
+    avg_train_losses = [
+        sum(train_losses) / len(train_losses)] * len(train_losses)
     avg_val_losses = [sum(val_losses) / len(val_losses)] * len(val_losses)
     save_losses_to_excel(avg_train_losses, 'avg_train_losses.xlsx')
     save_losses_to_excel(avg_val_losses, 'avg_val_losses.xlsx')
