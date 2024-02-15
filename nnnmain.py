@@ -3,6 +3,8 @@ import torch_xla
 import torch_xla.core.xla_model as xm
 import torch_xla.distributed.xla_multiprocessing as xmp
 import torch_xla.distributed.parallel_loader as pl
+from torch_xla import runtime as xr
+import torch.distributed as dist
 from torch.utils.data import DataLoader, random_split
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -89,6 +91,7 @@ def main(index):
     EPOCHS = 10
     DATA_PATH = "../SpinePatchesDataset1"
     MODEL_SAVE_PATH = "./models/SpineSegmentationv4.pth"
+    dist.init_process_group('xla', init_method='xla://')
 
     device = xm.xla_device()
     train_dataset = SpineDataset(DATA_PATH)
@@ -123,8 +126,10 @@ def main(index):
     train_loader = pl.MpDeviceLoader(train_loader, device)
     val_loader = pl.MpDeviceLoader(val_loader, device)
     model = UNet(in_channels=1, num_classes=1)
-    # model = DDP(model, device_ids=[device])  # Use DistributedDataParallel
-
+    # # Use DistributedDataParallel
+    if xr.using_pjrt():
+        xm.broadcast_master_param(model)
+    model = DDP(model,gradient_as_bucket_view=True, broadcast_buffers=False) 
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
 
@@ -132,11 +137,11 @@ def main(index):
     val_losses = []
 
     for epoch in tqdm(range(EPOCHS)):
-        model.train()  # Set to training mode
+       
         train_loss, batch_train_losses = train_epoch(
             model, train_loader, optimizer, criterion, device)
 
-        model.eval()  # Set to evaluation mode
+       
         val_loss,  batch_val_losses = validate_epoch(
             model, val_loader, criterion, device)
 
