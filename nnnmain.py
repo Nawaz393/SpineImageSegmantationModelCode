@@ -110,11 +110,13 @@ def main(index):
     train_loader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, sampler=train_sampler)
     val_loader = DataLoader(dataset=val_dataset, batch_size=BATCH_SIZE, sampler=val_sampler)
     
-    parallel_loader = pl.ParallelLoader(train_loader, [device])
-    train_loader = parallel_loader.per_device_loader(device)
-    parallel_loader_val = pl.ParallelLoader(val_loader, [device])
-    val_loader = parallel_loader_val.per_device_loader(device)
+    # parallel_loader = pl.ParallelLoader(train_loader, [device])
+    # train_loader = parallel_loader.per_device_loader(device)
+    # parallel_loader_val = pl.ParallelLoader(val_loader, [device])
+    # val_loader = parallel_loader_val.per_device_loader(device)
 
+    train_loader = pl.MpDeviceLoader(train_loader, device)
+    val_loader = pl.MpDeviceLoader(val_loader, device)
     model = UNet(in_channels=1, num_classes=1)
     model = DDP(model, device_ids=[device])  # Use DistributedDataParallel
 
