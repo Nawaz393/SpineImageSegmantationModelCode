@@ -87,10 +87,10 @@ def save_losses_to_excel(losses, file_path):
 
 def main(index):
     LEARNING_RATE = 3e-4
-    BATCH_SIZE = 64
+    BATCH_SIZE = 128
     EPOCHS = 10
     DATA_PATH = "../SpinePatchesDataset1"
-    MODEL_SAVE_PATH = "./models/SpineSegmentationv4.pth"
+    MODEL_SAVE_PATH = "./models/SpineSegmentationv5.pth"
     dist.init_process_group('xla', init_method='xla://')
 
     device = xm.xla_device()
@@ -104,7 +104,7 @@ def main(index):
         train_dataset,
         num_replicas=xm.xrt_world_size(),
         rank=xm.get_ordinal(),
-        shuffle=True
+        shuffle=False if train_sampler else True
     )
     val_sampler = torch.utils.data.distributed.DistributedSampler(
         val_dataset,
@@ -154,14 +154,15 @@ def main(index):
             print(f"Valid Loss EPOCH {epoch + 1}: {val_loss:.4f}")
             print("-" * 30)
 
+
     save_losses_to_excel(train_losses, 'all_batch_losses.xlsx')
     avg_train_losses = [
         sum(train_losses) / len(train_losses)] * len(train_losses)
     avg_val_losses = [sum(val_losses) / len(val_losses)] * len(val_losses)
     save_losses_to_excel(avg_train_losses, 'avg_train_losses.xlsx')
     save_losses_to_excel(avg_val_losses, 'avg_val_losses.xlsx')
-
-    xm.save(model.state_dict(), MODEL_SAVE_PATH)
+    if xm.is_master_ordinal():
+        xm.save(model.state_dict(), MODEL_SAVE_PATH)
 
 
 if __name__ == "__main__":
