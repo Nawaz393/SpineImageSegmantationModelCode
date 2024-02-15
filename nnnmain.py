@@ -104,7 +104,7 @@ def main(index):
         train_dataset,
         num_replicas=xm.xrt_world_size(),
         rank=xm.get_ordinal(),
-        shuffle=False if train_sampler else True
+        shuffle=True
     )
     val_sampler = torch.utils.data.distributed.DistributedSampler(
         val_dataset,
