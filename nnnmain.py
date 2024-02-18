@@ -61,23 +61,7 @@ def validate_epoch(model, val_loader, criterion, device):
     return avg_loss, batch_val_losses
 
 
-def plot_epoch_losses(train_losses, val_losses, epoch):
-    plt.figure(figsize=(12, 4))
 
-    plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Training Loss - Batches')
-    plt.xlabel('Batch Index')
-    plt.ylabel('Loss')
-    plt.title(f'Training Loss - Epoch {epoch}')
-
-    plt.subplot(1, 2, 2)
-    plt.plot(val_losses, label='Validation Loss - Batches')
-    plt.xlabel('Batch Index')
-    plt.ylabel('Loss')
-    plt.title(f'Validation Loss - Epoch {epoch}')
-
-    plt.tight_layout()
-    plt.show()
 
 
 def save_losses_to_excel(losses, file_path):
@@ -90,8 +74,8 @@ def main(index):
     BATCH_SIZE = 128
     EPOCHS = 10
     DATA_PATH = "../SpinePatchesDataset1"
-    MODEL_SAVE_PATH = "./models/SpineSegmentationv5.pth"
-    # dist.init_process_group('xla', init_method='xla://')
+    MODEL_SAVE_PATH = "./models/SpineSegmentationv6.pth"
+    dist.init_process_group('xla', init_method='xla://')
 
     device = xm.xla_device()
     train_dataset = SpineDataset(DATA_PATH)
@@ -129,7 +113,7 @@ def main(index):
     # # Use DistributedDataParallel
   
     xm.broadcast_master_param(model)
-    model = DDP(model,gradient_as_bucket_view=True, broadcast_buffers=False) 
+    model = DDP(model,gradient_as_bucket_view=True) 
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
 
@@ -167,13 +151,13 @@ def main(index):
 
 if __name__ == "__main__":
     print("Training Started...")
-    if xm.is_master_ordinal():
-        print("Initializing distributed training...")
-        xmp.spawn(main,
-                  args=(),
-                  nprocs=4,  # Adjust based on your setup
-                  start_method='fork')
-        dist.init_process_group('xla', init_method='xla://')  # Use 'xla://' for TPUs
-    else:
-        dist.init_process_group() 
+    # if xm.is_master_ordinal():
+    #     print("Initializing distributed training...")
+    xmp.spawn(main,
+            args=(),
+                #   nprocs=4,  # Adjust based on your setup
+            start_method='fork')
+        # dist.init_process_group('xla', init_method='xla://')  # Use 'xla://' for TPUs
+    # else:
+    #     dist.init_process_group() 
     print("Training Completed.")
