@@ -11,22 +11,27 @@ import os
 
 if __name__ == "__main__":
     LEARNING_RATE = 3e-4
-    BATCH_SIZE = 32
-    EPOCHS = 5
+    BATCH_SIZE = 128
+    EPOCHS = 10
     DATA_PATH = "../SpinePatchesDataset1"
-    CHECKPOINT_PATH = "./models/Single_SpineSegmentationv5_checkpoint_{epoch}.pth"  # Update path
-    MODEL_SAVE_PATH = "./models/Single_SpineSegmentationv5.pth"  # Update path
-    LOG_FILE_PATH = "./logs/loss_log.xlsx"  # Update path
+    # Update path
+    CHECKPOINT_PATH = "./models/Single_SpineSegmentationv6_checkpoint_{epoch}.pth"
+    MODEL_SAVE_PATH = "./models/Single_SpineSegmentationv6.pth"  # Update path
+    MAIN_LOG_FILE_PATH = "./logs/main_loss_log.xlsx"  # Update path
+    BATCH_LOG_FILE_PATH = "./logs/batch_loss_log.xlsx"  # Update path
     # device = "cuda" if torch.cuda.is_available() else "cpu"
     device = xm.xla_device()
 
     train_dataset = SpineDataset(DATA_PATH)
 
     generator = torch.Generator().manual_seed(42)
-    train_dataset, val_dataset = random_split(train_dataset, [0.8, 0.2], generator=generator)
+    train_dataset, val_dataset = random_split(
+        train_dataset, [0.8, 0.2], generator=generator)
 
-    train_dataloader = DataLoader(dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_dataloader = DataLoader(dataset=val_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    train_dataloader = DataLoader(
+        dataset=train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_dataloader = DataLoader(
+        dataset=val_dataset, batch_size=BATCH_SIZE, shuffle=True)
 
     model = UNet(in_channels=1, num_classes=1).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
@@ -41,8 +46,10 @@ if __name__ == "__main__":
         start_epoch = checkpoint['epoch'] + 1
         print(f"Resuming training from checkpoint epoch {start_epoch}...")
 
-    # Initialize a DataFrame to store losses
-    loss_df = pd.DataFrame(columns=['Epoch', 'Batch', 'Train Loss', 'Valid Loss'])
+    # Initialize DataFrames to store losses
+    main_loss_df = pd.DataFrame(columns=['Epoch', 'Train Loss', 'Valid Loss'])
+    batch_loss_df = pd.DataFrame(
+        columns=['Epoch', 'Batch', 'Train Loss', 'Valid Loss'])
 
     for epoch in tqdm(range(start_epoch, EPOCHS)):
         model.train()
@@ -61,8 +68,9 @@ if __name__ == "__main__":
             optimizer.step()
             xm.mark_step()
 
-            # Save batch loss to DataFrame
-            loss_df = loss_df.append({'Epoch': epoch + 1, 'Batch': idx + 1, 'Train Loss': loss.item()}, ignore_index=True)
+            # Save batch loss to batch_loss_df
+            batch_loss_df = batch_loss_df.append(
+                {'Epoch': epoch + 1, 'Batch': idx + 1, 'Train Loss': loss.item()}, ignore_index=True)
 
         train_loss = train_running_loss / (idx + 1)
 
@@ -85,8 +93,9 @@ if __name__ == "__main__":
         print(f"Valid Loss EPOCH {epoch + 1}: {val_loss:.4f}")
         print("-" * 30)
 
-        # Save epoch loss to DataFrame
-        loss_df = loss_df.append({'Epoch': epoch + 1, 'Batch': 'Epoch', 'Train Loss': train_loss, 'Valid Loss': val_loss}, ignore_index=True)
+        # Save epoch loss to main_loss_df
+        main_loss_df = main_loss_df.append(
+            {'Epoch': epoch + 1, 'Train Loss': train_loss, 'Valid Loss': val_loss}, ignore_index=True)
 
         # Save checkpoint after each epoch
         torch.save({
@@ -95,8 +104,9 @@ if __name__ == "__main__":
             'optimizer_state_dict': optimizer.state_dict(),
         }, CHECKPOINT_PATH.format(epoch=epoch))
 
-    # Save the DataFrame to an Excel file
-    loss_df.to_excel(LOG_FILE_PATH, index=False)
+    # Save DataFrames to Excel files
+    main_loss_df.to_excel(MAIN_LOG_FILE_PATH, index=False)
+    batch_loss_df.to_excel(BATCH_LOG_FILE_PATH, index=False)
 
     # Final save to the desired path
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
