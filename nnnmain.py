@@ -68,15 +68,6 @@ def save_losses_to_excel(losses, file_path):
     df = pd.DataFrame({'Loss': losses})
     df.to_excel(file_path, index=False)
 
-def setup(rank, world_size):
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'
-
-    # initialize the process group
-    dist.init_process_group("xla", rank=rank, world_size=world_size)
-
-def cleanup():
-    dist.destroy_process_group()
 
 
 def main(index):
@@ -85,7 +76,7 @@ def main(index):
     EPOCHS = 10
     DATA_PATH = "../SpinePatchesDataset1"
     MODEL_SAVE_PATH = "./models/SpineSegmentationv6.pth"
-    setup(rank=xm.get_ordinal(),world_size=xm.xrt_world_size())
+    dist.init_process_group('xla', init_method='xla://')
     device = xm.xla_device()
     train_dataset = SpineDataset(DATA_PATH)
 
@@ -156,7 +147,6 @@ def main(index):
     save_losses_to_excel(avg_val_losses, 'avg_val_losses.xlsx')
     if xm.is_master_ordinal():
         xm.save(model.state_dict(), MODEL_SAVE_PATH)
-    cleanup()
 
 
 if __name__ == "__main__":
