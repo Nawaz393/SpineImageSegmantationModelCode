@@ -11,7 +11,6 @@ from torch import optim, nn
 import os
 from spine_dataset import SpineDataset
 from unet import UNet
-from torch.nn.parallel import DistributedDataParallel as DDP  # Added for DDP
 import numpy as np
 
 
@@ -87,8 +86,6 @@ def validate_epoch(model, val_loader, criterion, device, epoch):
 
     return avg_loss, all_batch_val_losses
 
-
-def plot_epoch_losses(train_losses, val_losses, epoch):
     plt.figure(figsize=(12, 4))
 
     plt.subplot(1, 2, 1)
@@ -126,36 +123,22 @@ def main(index):
     train_dataset, val_dataset = random_split(
         train_dataset, [0.8, 0.2], generator=generator)
 
-    train_sampler = torch.utils.data.distributed.DistributedSampler(
-        train_dataset,
-        num_replicas=xm.xrt_world_size(),
-        rank=xm.get_ordinal(),
-        shuffle=True
-    )
-    val_sampler = torch.utils.data.distributed.DistributedSampler(
-        val_dataset,
-        num_replicas=xm.xrt_world_size(),
-        rank=xm.get_ordinal(),
-        shuffle=False
-    )
-
     train_loader = DataLoader(dataset=train_dataset,
                               batch_size=BATCH_SIZE,
-                              sampler=train_sampler)
+                              )
     val_loader = DataLoader(dataset=val_dataset,
                             batch_size=BATCH_SIZE,
-                            sampler=val_sampler)
-    parallel_loader = pl.ParallelLoader(train_loader, [device])
-    train_loader = parallel_loader.per_device_loader(device)
-    parallel_loader_val = pl.ParallelLoader(val_loader, [device])
-    val_loader = parallel_loader_val.per_device_loader(device)
-
-    # Simplified model initialization
+                            )
     model = UNet(in_channels=1, num_classes=1).to(device)
 
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
-
+    train_loader = pl.MpDeviceLoader(
+        train_loader,
+        device)
+    val_loader = pl.MpDeviceLoader(
+        train_loader,
+        device)
     for epoch in tqdm(range(EPOCHS)):
         train_loss, all_batch_train_losses = train_epoch(
             model, train_loader, optimizer, criterion, device, epoch)
@@ -185,7 +168,9 @@ if __name__ == "__main__":
     xmp.spawn(
         main,
         args=(),
+        nprocs=8,
         start_method='fork',
+
 
     )
     print("training completed.....")
