@@ -6,6 +6,7 @@ from unet import UNet
 from tqdm import tqdm
 import torch_xla
 import torch_xla.core.xla_model as xm
+from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
 import os
 
@@ -26,7 +27,7 @@ def prepare_model(device):
     return UNet(in_channels=1, num_classes=1).to(device)
 
 
-def train_func(model, optimizer, criterion):
+def train_func(model, optimizer, criterion, writer, epoch):
     model.train()
     batch_train_loss = []
     for img_mask in tqdm(train_dataloader):
@@ -40,10 +41,12 @@ def train_func(model, optimizer, criterion):
         loss.backward()
         optimizer.step()
         xm.mark_step()
+    for i, loss in enumerate(batch_train_loss):
+        writer.add_scalar('BatchLoss/Train', loss, epoch * len(train_dataloader) + i)
     return sum(batch_train_loss)/len(batch_train_loss), batch_train_loss
 
 
-def validation_func(model, criterion):
+def validation_func(model, criterion, writer, epoch):
     model.eval()
     batch_val_loss = []
     with torch.no_grad():
@@ -54,6 +57,8 @@ def validation_func(model, criterion):
             loss = criterion(y_pred, mask)
             # val_running_loss += loss.item()
             batch_val_loss.append(loss.item())
+    for i, loss in enumerate(batch_val_loss):
+        writer.add_scalar('BatchLoss/Validation', loss, epoch * len(val_dataloader) + i)
     return sum(batch_val_loss)/len(batch_val_loss), batch_val_loss
 
 
@@ -73,6 +78,7 @@ if __name__ == "__main__":
     model = prepare_model(device)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
+    writer = SummaryWriter(log_dir='./logs/tensorboard_logs')
 
     # Load from checkpoint if it exists
     start_epoch = 0
@@ -88,9 +94,9 @@ if __name__ == "__main__":
     avg_val_losses = []
     for epoch in tqdm(range(start_epoch, EPOCHS)):
         train_loss, batch_train_loss = train_func(
-            model=model, optimizer=optimizer, criterion=criterion)
+            model=model, optimizer=optimizer, criterion=criterion, writer=writer, epoch=epoch)
         val_loss, batch_val_loss = validation_func(
-            model=model, criterion=criterion)
+            model=model, criterion=criterion, writer=writer, epoch=epoch)
         batch_train_losses.extend(batch_train_loss)
         batch_val_losses.extend(batch_val_loss)
         avg_train_losses.append(train_loss)
@@ -104,7 +110,7 @@ if __name__ == "__main__":
             'model_state_dict': model.state_dict(),
             'optimizer_state_dict': optimizer.state_dict(),
         }, CHECKPOINT_PATH.format(epoch=epoch))
-
+    writer.close()
     try:
         loss_data = {
         'AvgTrainLoss': avg_train_losses,
