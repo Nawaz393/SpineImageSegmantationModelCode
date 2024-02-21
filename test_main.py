@@ -5,10 +5,9 @@ import torch_xla.core.xla_model as xm
 from unet import UNet
 import torch
 if __name__ == "__main__":
-    data_dir = r'G:\python\3d images\niiTestData\data'
-    true_masks_dir = r'G:\python\3d images\niiTestData\label'
-    pred_masks_dir = r'G:\python\3d images\niiTestData\pred_masks'
-    model_pth = "./models/imh.pth"
+    data_dir = r'../niiTestData/data'
+    true_masks_dir = '../niiTestData/label'
+    model_pth = "./models/Single_SpineSegmentationv6.pth"
     device = xm.xla_device()
     
     start = time.time()
@@ -17,6 +16,7 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load(
         model_pth, map_location=torch.device(device)))
     model.eval()
+   
     
     evaluate = Evaluate(
         data_dir=data_dir, true_masks_dir=true_masks_dir, model=model, device=device)
