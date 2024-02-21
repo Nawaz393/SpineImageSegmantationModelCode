@@ -5,9 +5,10 @@ import torch_xla.core.xla_model as xm
 from unet import UNet
 import torch
 if __name__ == "__main__":
-    data_dir = "../niiTestData/data"
-    true_masks_dir = "../niiTestData/label"
-    model_pth = "./models/Single_SpineSegmentationv6.pth"
+    data_dir = r'G:\python\3d images\niiTestData\data'
+    true_masks_dir = r'G:\python\3d images\niiTestData\label'
+    pred_masks_dir = r'G:\python\3d images\niiTestData\pred_masks'
+    model_pth = "./models/imh.pth"
     device = xm.xla_device()
     
     start = time.time()

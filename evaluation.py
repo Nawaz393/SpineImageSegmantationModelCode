@@ -133,8 +133,8 @@ class Evaluate:
 
         print("predicting masks................")
         for image in tqdm(self.images):
-            image_np = np.array(image)
-            pred_mask = self.single_image_inference(image_np, self.model, self.device)
+            # image_np = np.array(image)
+            pred_mask = self.single_image_inference(image, self.model, self.device)
             self.pred_masks.append(pred_mask)
     
     
