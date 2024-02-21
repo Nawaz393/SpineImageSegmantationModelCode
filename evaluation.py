@@ -80,11 +80,9 @@ class Evaluate:
         return patches
 
     def load_images_and_masks(self):
-        print("loading and processing images.......")
         images_paths = os.listdir(self.data_dir)
         masks_paths = os.listdir(self.true_masks_dir)
-
-        def process_image_and_mask(image_path, mask_path):
+        for image_path, mask_path in zip(images_paths, masks_paths):
             image_volume = nib.load(os.path.join(
                 self.data_dir, image_path)).get_fdata()
             mask_volume = nib.load(os.path.join(
@@ -93,21 +91,16 @@ class Evaluate:
                 image_volume, is_label=False)
             mask_slices = self.convert_from_3d_to_2d(
                 mask_volume, is_label=True)
-
-            for image_slice, mask_slice in tqdm(zip(image_slices, mask_slices)):
+            for image_slice, mask_slice in zip(image_slices, mask_slices):
                 images_patches = self.extract_patches(
                     image_slice, (128, 128), (128, 128))
                 mask_patches = self.extract_patches(
                     mask_slice, (128, 128), (128, 128))
-
-                for image_patch, mask_patch in tqdm(zip(images_patches, mask_patches)):
-                    self.images.append(image_patch)
-                    self.true_masks.append(mask_patch)
-
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            executor.map(process_image_and_mask, images_paths, masks_paths)
-        print(f" total mask patches: {len(self.true_masks)}")
+                self.images.extend(images_patches)
+                self.true_masks.extend(mask_patches)
         print(f" total image patches: {len(self.images)}")
+        print(f" total true_masks patches: {len(self.true_masks)}")
+        
 
 
     def single_image_inference(self,image, model, device):
