@@ -26,6 +26,7 @@ if __name__ == "__main__":
     evaluate.predict_masks()
 
     evaluate.evaluate_metrics()
+    evaluate.save_images("../testPatches")
     
     end = time.time()
     

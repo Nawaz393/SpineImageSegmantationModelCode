@@ -5,6 +5,7 @@ import numpy as np
 import concurrent.futures
 from sklearn.metrics import accuracy_score, f1_score, jaccard_score, recall_score, precision_score, confusion_matrix
 from tqdm import tqdm
+from PIL import Image
 import logging
 
 import torch
@@ -100,12 +101,29 @@ class Evaluate:
                 self.true_masks.extend(mask_patches)
         print(f" total image patches: {len(self.images)}")
         print(f" total true_masks patches: {len(self.true_masks)}")
+
+    def save_images(self, save_dir):
+        os.makedirs(save_dir, exist_ok=True)
+        os.makedirs(os.path.join(save_dir,"data"),exist_ok=True)
+        os.makedirs(os.path.join(save_dir,"true_masks"),exist_ok=True)
+        os.makedirs(os.path.join(save_dir,"pred_masks"),exist_ok=True)
+        for i, (image, true_mask, pred_mask) in enumerate(zip(self.images, self.true_masks, self.pred_masks)):
+            # Convert NumPy arrays to PIL Images
+            image_pil = Image.fromarray(image)
+            true_mask_pil = Image.fromarray(true_mask)
+            pred_mask_pil = Image.fromarray(pred_mask)
+
+            # Save images with numbered filenames
+            image_pil.save(os.path.join(save_dir,"data" f"image_{i}.png"))
+            true_mask_pil.save(os.path.join(save_dir,"true_masks", f"true_mask_{i}.png"))
+            pred_mask_pil.save(os.path.join(save_dir,"pred_masks", f"pred_mask_{i}.png"))
         
 
 
     def single_image_inference(self,image, model, device):
    
         transform = transforms.Compose([
+            transforms.ToPILImage(),
             transforms.Resize((128, 128)),
             transforms.ToTensor()
         ])
@@ -126,8 +144,8 @@ class Evaluate:
 
         print("predicting masks................")
         for image in tqdm(self.images):
-            # image_np = np.array(image)
-            pred_mask = self.single_image_inference(image, self.model, self.device)
+            image_np = np.array(image)
+            pred_mask = self.single_image_inference(image_np, self.model, self.device)
             self.pred_masks.append(pred_mask)
     
     
@@ -209,5 +227,6 @@ class Evaluate:
         logging.info(f'Accuracy Scores: {accuracy_scores}')
         logging.info(f'F1 Scores: {f1_scores}')
         logging.info(f'Jaccard Scores: {jacc_scores}')
+
 
             
