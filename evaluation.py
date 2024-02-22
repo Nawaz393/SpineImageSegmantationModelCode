@@ -99,6 +99,7 @@ class Evaluate:
                     mask_slice, (128, 128), (128, 128))
                 self.images.extend(images_patches)
                 self.true_masks.extend(mask_patches)
+            break
         print(f" total image patches: {len(self.images)}")
         print(f" total true_masks patches: {len(self.true_masks)}")
 
@@ -109,7 +110,8 @@ class Evaluate:
         os.makedirs(os.path.join(save_dir,"pred_masks"),exist_ok=True)
         for i, (image, true_mask, pred_mask) in enumerate(zip(self.images, self.true_masks, self.pred_masks)):
             # Convert NumPy arrays to PIL Images
-            image_pil = Image.fromarray(image)
+        
+            image_pil = Image.fromarray((image*255).astype("uint8"))
             true_mask_pil = Image.fromarray(true_mask)
             pred_mask_pil = Image.fromarray(pred_mask)
 
@@ -134,7 +136,7 @@ class Evaluate:
         with torch.no_grad():
             pred_mask = model(img)
 
-        pred_mask = pred_mask.squeeze(0).cpu().permute(1, 2, 0)
+        pred_mask = pred_mask.squeeze(0).cpu().permute(1, 2, 0).squeeze(-1)
         pred_mask[pred_mask < 0] = 0
         pred_mask[pred_mask > 0] = 1
 
@@ -158,9 +160,9 @@ class Evaluate:
         # Dice coefficient
         dice = (2 * tp) / (2 * tp + fp + fn) if (2 * tp + fp + fn) != 0 else 0.0
         # Sensitivity (Recall)
-        sensitivity = recall_score(true_mask, pred_mask, labels=[0, 1], average="binary", zero_division=1)
+        sensitivity = recall_score(true_mask, pred_mask, labels=[0, 1], average="binary")
         # Precision
-        precision = precision_score(true_mask, pred_mask, labels=[0, 1], average="binary", zero_division=1)
+        precision = precision_score(true_mask, pred_mask, labels=[0, 1], average="binary")
         # Accuracy
         acc_value = accuracy_score(true_mask, pred_mask)
         # F1 Score
@@ -181,8 +183,8 @@ class Evaluate:
         accuracy_scores = []
 
         for true_mask, pred_mask in tqdm(zip(self.true_masks, self.pred_masks)):
-            pred_mask = pred_mask / 255.0
-            pred_mask = (pred_mask > 0.5).astype(np.int32)
+            # pred_mask = pred_mask / 255.0
+            # pred_mask = (pred_mask > 0.5).astype(np.int32)
             pred_mask = pred_mask.flatten()
 
             true_mask = true_mask / 255.0
@@ -210,6 +212,15 @@ class Evaluate:
         mean_jacc = np.mean(jacc_scores)
 
         # Log scores
+        print(f"Mean Sensitivity: {mean_sensitivity}")
+
+        print(f"Mean Dice: {mean_dice}")
+        print(f"Mean Specificity: {mean_specificity}")
+        print(f"Mean Precision: {mean_precision}")
+        print(f"Mean Accuracy: {mean_accuracy}")
+        print(f"Mean F1: {mean_f1}")
+        print(f"Mean Jaccard: {mean_jacc}")
+
         logging.basicConfig(filename='score.log', level=logging.INFO)
         logging.info(f'Mean Sensitivity: {mean_sensitivity}')
         logging.info(f'Mean Dice: {mean_dice}')
