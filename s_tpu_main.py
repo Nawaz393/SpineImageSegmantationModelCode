@@ -65,14 +65,14 @@ def validation_func(model, criterion, writer, epoch):
 if __name__ == "__main__":
     LEARNING_RATE = 3e-4
     BATCH_SIZE = 128
-    EPOCHS = 10
+    EPOCHS = 11
     DATA_PATH = "../SpinePatchesDataset1"
     # Update path
     CHECKPOINT_PATH = "./models/Single_SpineSegmentationv6_checkpoint_{epoch}.pth"
     MODEL_SAVE_PATH = "./models/Single_SpineSegmentationv6.pth"  # Update path
     
-    # device = "cuda" if torch.cuda.is_available() else "cpu"
-    device = xm.xla_device()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    # device = xm.xla_device()
     train_dataloader, val_dataloader = prepere_dataset(
         data_path=DATA_PATH, batch_size=BATCH_SIZE)
     model = prepare_model(device)
