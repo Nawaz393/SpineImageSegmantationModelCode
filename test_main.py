@@ -7,8 +7,12 @@ import torch
 if __name__ == "__main__":
     data_dir = r'../niiTestData/data'
     true_masks_dir = '../niiTestData/label'
-    model_pth = "./models/Single_SpineSegmentationv6.pth"
+    model_pth = "../models/Single_SpineSegmentationv6.pth"
+    # data_dir=r'G:\python\3d images\niiTestData\data'
+    # true_masks_dir=r'G:\python\3d images\niiTestData\label'
+    # model_pth = "../models/Single_SpineSegmentationv7.pth"
     device = xm.xla_device()
+    # device="cpu"
     
     start = time.time()
     
@@ -24,9 +28,9 @@ if __name__ == "__main__":
     evaluate.load_images_and_masks()
     
     evaluate.predict_masks()
-
+    evaluate.save_images("./testPatches")
     evaluate.evaluate_metrics()
-    evaluate.save_images("../testPatches")
+  
     
     end = time.time()
     

@@ -99,28 +99,26 @@ class Evaluate:
                     mask_slice, (128, 128), (128, 128))
                 self.images.extend(images_patches)
                 self.true_masks.extend(mask_patches)
-            break
+            
         print(f" total image patches: {len(self.images)}")
         print(f" total true_masks patches: {len(self.true_masks)}")
 
     def save_images(self, save_dir):
         os.makedirs(save_dir, exist_ok=True)
-        os.makedirs(os.path.join(save_dir,"data"),exist_ok=True)
-        os.makedirs(os.path.join(save_dir,"true_masks"),exist_ok=True)
-        os.makedirs(os.path.join(save_dir,"pred_masks"),exist_ok=True)
+        os.makedirs(os.path.join(save_dir, "data"), exist_ok=True)
+        os.makedirs(os.path.join(save_dir, "true_masks"), exist_ok=True)
+        os.makedirs(os.path.join(save_dir, "pred_masks"), exist_ok=True)
+        
         for i, (image, true_mask, pred_mask) in enumerate(zip(self.images, self.true_masks, self.pred_masks)):
-            # Convert NumPy arrays to PIL Images
-        
-            image_pil = Image.fromarray((image*255).astype("uint8"))
-            true_mask_pil = Image.fromarray(true_mask)
-            pred_mask_pil = Image.fromarray(pred_mask)
-
-            # Save images with numbered filenames
-            image_pil.save(os.path.join(save_dir,"data" f"image_{i}.png"))
-            true_mask_pil.save(os.path.join(save_dir,"true_masks", f"true_mask_{i}.png"))
-            pred_mask_pil.save(os.path.join(save_dir,"pred_masks", f"pred_mask_{i}.png"))
-        
-
+    
+            image = (image).astype('uint8')
+            true_mask = (true_mask).astype('uint8')
+            pred_mask = (pred_mask * 255).astype('uint8')
+            cv.imwrite(os.path.join(save_dir, "data", f"image_{i}.png"), image, [cv.IMWRITE_PNG_COMPRESSION, 0])
+            cv.imwrite(os.path.join(save_dir, "true_masks", f"true_mask_{i}.png"), true_mask, [cv.IMWRITE_PNG_COMPRESSION, 0])
+            cv.imwrite(os.path.join(save_dir, "pred_masks", f"pred_mask_{i}.png"), pred_mask, [cv.IMWRITE_PNG_COMPRESSION, 0])
+            
+           
 
     def single_image_inference(self,image, model, device):
    
@@ -160,15 +158,15 @@ class Evaluate:
         # Dice coefficient
         dice = (2 * tp) / (2 * tp + fp + fn) if (2 * tp + fp + fn) != 0 else 0.0
         # Sensitivity (Recall)
-        sensitivity = recall_score(true_mask, pred_mask, labels=[0, 1], average="binary")
+        sensitivity = recall_score(true_mask, pred_mask, labels=[0, 1], average="binary",zero_division=1)
         # Precision
-        precision = precision_score(true_mask, pred_mask, labels=[0, 1], average="binary")
+        precision = precision_score(true_mask, pred_mask, labels=[0, 1], average="binary",zero_division=1)
         # Accuracy
         acc_value = accuracy_score(true_mask, pred_mask)
         # F1 Score
-        f1_value = f1_score(true_mask, pred_mask, labels=[0, 1], average="binary")
+        f1_value = f1_score(true_mask, pred_mask, labels=[0, 1], average="binary",zero_division=1)
         # Jaccard Score
-        jacc_value = jaccard_score(true_mask, pred_mask, labels=[0, 1], average="binary")
+        jacc_value = jaccard_score(true_mask, pred_mask, labels=[0, 1], average="binary",zero_division=1)
 
         return specificity, dice, sensitivity, precision, acc_value, f1_value, jacc_value
     
