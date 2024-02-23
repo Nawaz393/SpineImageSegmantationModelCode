@@ -1,18 +1,18 @@
 from evaluation import Evaluate
 import time
-import torch_xla
-import torch_xla.core.xla_model as xm
+# import torch_xla
+# import torch_xla.core.xla_model as xm
 from unet import UNet
 import torch
 if __name__ == "__main__":
-    data_dir = r'../niiTestData/data'
-    true_masks_dir = '../niiTestData/label'
+    # data_dir = r'../niiTestData/data'
+    # true_masks_dir = '../niiTestData/label'
     model_pth = "../models/Single_SpineSegmentationv6.pth"
-    # data_dir=r'G:\python\3d images\niiTestData\data'
-    # true_masks_dir=r'G:\python\3d images\niiTestData\label'
-    # model_pth = "../models/Single_SpineSegmentationv7.pth"
-    device = xm.xla_device()
-    # device="cpu"
+    data_dir=r'G:\python\3d images\niiTestData\data'
+    true_masks_dir=r'G:\python\3d images\niiTestData\label'
+    model_pth = "../models/Single_SpineSegmentationv7.pth"
+    # device = xm.xla_device()
+    device="cpu"
     
     start = time.time()
     
