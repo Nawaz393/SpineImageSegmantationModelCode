@@ -153,7 +153,7 @@ class Evaluate:
             pred_mask = self.single_image_inference(
                 image_np, self.model, self.device)
             self.pred_masks.append(pred_mask)
-
+        
     def calculate_metrics(self, true_mask, pred_mask):
         # Confusion Matrix
         cm = confusion_matrix(true_mask, pred_mask, labels=[0, 1])
@@ -186,8 +186,8 @@ class Evaluate:
 
         return specificity, dice, sensitivity, precision, acc_value, f1_value, jacc_value
 
-    def evaluate_metrics(self):
-        print("calculating matrices ...............")
+    def evaluate_metrics(self, output_file_path='metrics.txt'):
+        print("Calculating matrices and writing to file ...............")
         specificity_scores = []
         dice_scores = []
         sensitivity_scores = []
@@ -196,27 +196,31 @@ class Evaluate:
         jacc_scores = []
         accuracy_scores = []
 
-        for true_mask, pred_mask in tqdm(zip(self.true_masks, self.pred_masks)):
-            # pred_mask = pred_mask / 255.0
-            # pred_mask = (pred_mask > 0.5).astype(np.int32)
-            pred_mask = pred_mask.flatten()
+        with open(output_file_path, 'w') as output_file:
+            output_file.write("Sensitivity, Dice, Specificity, Precision, Accuracy, F1, Jaccard\n")
 
-            true_mask = true_mask / 255.0
-            true_mask = (true_mask > 0.5).astype(np.int32)
-            true_mask = true_mask.flatten()
-            if (np.sum(pred_mask) == 0 and np.sum(true_mask) == 0):
+            for true_mask, pred_mask in tqdm(zip(self.true_masks, self.pred_masks)):
+                pred_mask = pred_mask.flatten()
+                true_mask = true_mask / 255.0
+                true_mask = (true_mask > 0.5).astype(np.int32)
+                true_mask = true_mask.flatten()
+
+                if (np.sum(pred_mask) == 0 and np.sum(true_mask) == 0):
                     continue
 
-            specificity, dice, sensitivity, precision, acc_value, f1_value, jacc_value = self.calculate_metrics(
-                true_mask, pred_mask)
+                specificity, dice, sensitivity, precision, acc_value, f1_value, jacc_value = self.calculate_metrics(
+                    true_mask, pred_mask)
 
-            sensitivity_scores.append(sensitivity)
-            dice_scores.append(dice)
-            specificity_scores.append(specificity)
-            precision_scores.append(precision)
-            accuracy_scores.append(acc_value)
-            f1_scores.append(f1_value)
-            jacc_scores.append(jacc_value)
+                sensitivity_scores.append(sensitivity)
+                dice_scores.append(dice)
+                specificity_scores.append(specificity)
+                precision_scores.append(precision)
+                accuracy_scores.append(acc_value)
+                f1_scores.append(f1_value)
+                jacc_scores.append(jacc_value)
+
+                # Write to file
+                output_file.write(f"{sensitivity},{dice},{specificity},{precision},{acc_value},{f1_value},{jacc_value}\n")
 
         # Calculate mean scores
         mean_sensitivity = np.mean(sensitivity_scores)
@@ -229,13 +233,22 @@ class Evaluate:
 
         # Log scores
         print(f"Mean Sensitivity: {mean_sensitivity}")
-
         print(f"Mean Dice: {mean_dice}")
         print(f"Mean Specificity: {mean_specificity}")
         print(f"Mean Precision: {mean_precision}")
         print(f"Mean Accuracy: {mean_accuracy}")
         print(f"Mean F1: {mean_f1}")
         print(f"Mean Jaccard: {mean_jacc}")
+
+        # Log to file
+        with open(output_file_path, 'a') as output_file:
+            output_file.write(f"\nMean Sensitivity: {mean_sensitivity}\n")
+            output_file.write(f"Mean Dice: {mean_dice}\n")
+            output_file.write(f"Mean Specificity: {mean_specificity}\n")
+            output_file.write(f"Mean Precision: {mean_precision}\n")
+            output_file.write(f"Mean Accuracy: {mean_accuracy}\n")
+            output_file.write(f"Mean F1: {mean_f1}\n")
+            output_file.write(f"Mean Jaccard: {mean_jacc}\n")
 
         logging.basicConfig(filename='./score.log', level=logging.INFO)
         logging.info(f'Mean Sensitivity: {mean_sensitivity}')
@@ -245,7 +258,7 @@ class Evaluate:
         logging.info(f'Mean Accuracy: {mean_accuracy}')
         logging.info(f'Mean F1: {mean_f1}')
         logging.info(f'Mean Jaccard: {mean_jacc}')
-
+        
         # Optionally, you can also log the individual arrays
         logging.info(f'Sensitivity Scores: {sensitivity_scores}')
         logging.info(f'Dice Scores: {dice_scores}')
