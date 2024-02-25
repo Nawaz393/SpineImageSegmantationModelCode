@@ -9,7 +9,7 @@ import torch_xla.core.xla_model as xm
 from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
 import os
-from sklearn .metrics import dice_score, jaccard_score
+from sklearn.metrics import jaccard_score
 
 
 def prepare_dataset(data_path, batch_size):
@@ -27,6 +27,9 @@ def prepare_dataset(data_path, batch_size):
 def prepare_model(device):
     return UNet(in_channels=1, num_classes=1).to(device)
 
+def dice_score(y_true, y_pred, eps=1e-7):
+    intersection = (y_true * y_pred).sum()
+    return (2. * intersection + eps) / (y_true.sum() + y_pred.sum() + eps)
 
 def train_func(model, optimizer, criterion, writer, epoch):
     model.train()
@@ -58,16 +61,14 @@ def validation_func(model, criterion, writer, epoch):
             mask = img_mask[1].float().to(device)
             y_pred = model(img)
             loss = criterion(y_pred, mask)
-            # val_running_loss += loss.item()
             batch_val_loss.append(loss.item())
 
             y_pred = torch.sigmoid(y_pred)
             y_pred = (y_pred > 0.5).float()
-            dice = dice_score(y_pred.cpu().numpy(), mask.cpu().numpy())
-            jaccard = jaccard_score(y_pred.cpu().numpy(), mask.cpu().numpy())
+            dice = dice_score(mask.cpu().numpy(), y_pred.cpu().numpy())
+            jaccard = jaccard_score(y_pred.cpu().numpy().flatten(), mask.cpu().numpy().flatten())
             batch_val_dice.append(dice)
             batch_val_jaccard.append(jaccard)
-
     for i, loss in enumerate(batch_val_loss):
         writer.add_scalar('BatchLoss/Validation', loss, epoch * len(val_dataloader) + i)
     for i, dice in enumerate(batch_val_dice):
