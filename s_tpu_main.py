@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
 import os
 from sklearn.metrics import jaccard_score
-
+import glob
 
 def prepare_dataset(data_path, batch_size):
     train_dataset = SpineDataset(data_path)
@@ -30,6 +30,17 @@ def prepare_model(device):
 def dice_score(y_true, y_pred, eps=1e-7):
     intersection = (y_true * y_pred).sum()
     return (2. * intersection + eps) / (y_true.sum() + y_pred.sum() + eps)
+def load_latest_checkpoint(model, optimizer, path):
+    list_of_files = glob.glob(path) 
+    if not list_of_files:
+        return model, optimizer, 0
+    latest_file = max(list_of_files, key=os.path.getctime)
+    checkpoint = torch.load(latest_file)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    epoch = checkpoint['epoch']
+    print(f"Loaded checkpoint from epoch {epoch}")
+    return model, optimizer, epoch
 
 def train_func(model, optimizer, criterion, writer, epoch):
     model.train()
@@ -98,13 +109,8 @@ if __name__ == "__main__":
     writer = SummaryWriter(log_dir='./logs/tensorboard_logs')
 
     # Load from checkpoint if it exists
-    start_epoch = 0
-    if os.path.exists(CHECKPOINT_PATH.format(epoch=start_epoch)):
-        checkpoint = torch.load(CHECKPOINT_PATH.format(epoch=start_epoch))
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-        start_epoch = checkpoint['epoch'] + 1
-        print(f"Resuming training from checkpoint epoch {start_epoch}...")
+    l_CHECKPOINT_PATH = "./models/Single_SpineSegmentationv6_checkpoint_*.pth"
+    model, optimizer, start_epoch = load_latest_checkpoint(model, optimizer, l_CHECKPOINT_PATH)
 
     batch_train_losses = []
     batch_val_losses = []
@@ -124,10 +130,6 @@ if __name__ == "__main__":
         batch_val_dices.extend(batch_val_dice)
         batch_val_jaccard.extend(batch_val_jaccard)
         avg_train_losses.append(train_loss)
-        avg_val_losses.append(val_loss)
-        avg_val_dices.append(val_dice)
-        avg_val_jaccard.append(val_jaccard)
-        print("-" * 30)
         print(f"Train Loss EPOCH {epoch + 1}: {train_loss:.4f}")
         print(f"Valid Loss EPOCH {epoch + 1}: {val_loss:.4f}")
         print(f"Valid Dice EPOCH {epoch + 1}: {val_dice:.4f}")
