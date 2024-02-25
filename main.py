@@ -28,20 +28,16 @@ if __name__ == "__main__":
     model = UNet(in_channels=1, num_classes=1).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE)
     criterion = nn.BCEWithLogitsLoss()
-
     for epoch in tqdm(range(EPOCHS)):
         model.train()
         train_running_loss = 0
         for idx, img_mask in enumerate(tqdm(train_dataloader)):
             img = img_mask[0].float().to(device)
             mask = img_mask[1].float().to(device)
-
             y_pred = model(img)
             optimizer.zero_grad()
-
             loss = criterion(y_pred, mask)
             train_running_loss += loss.item()
-
             loss.backward()
             optimizer.step()
 
@@ -53,12 +49,9 @@ if __name__ == "__main__":
             for idx, img_mask in enumerate(tqdm(val_dataloader)):
                 img = img_mask[0].float().to(device)
                 mask = img_mask[1].float().to(device)
-
                 y_pred = model(img)
                 loss = criterion(y_pred, mask)
-
                 val_running_loss += loss.item()
-
             val_loss = val_running_loss / (idx + 1)
 
         print("-" * 30)

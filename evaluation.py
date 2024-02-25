@@ -94,15 +94,15 @@ class Evaluate:
             mask_slices = self.convert_from_3d_to_2d(
                 mask_volume, is_label=True)
             for i, (image_slice, mask_slice) in enumerate(zip(image_slices, mask_slices)):
-                if i == 350:
-                    images_patches = self.extract_patches(
+               
+                images_patches = self.extract_patches(
                         image_slice, (128, 128), (128, 128))
-                    mask_patches = self.extract_patches(
+                mask_patches = self.extract_patches(
                         mask_slice, (128, 128), (128, 128))
-                    self.images.extend(images_patches)
-                    self.true_masks.extend(mask_patches)
-                    break
-            break
+                self.images.extend(images_patches)
+                self.true_masks.extend(mask_patches)
+                    
+            
 
         print(f" total image patches: {len(self.images)}")
         print(f" total true_masks patches: {len(self.true_masks)}")
@@ -114,7 +114,6 @@ class Evaluate:
         os.makedirs(os.path.join(save_dir, "pred_masks"), exist_ok=True)
 
         for i, (image, true_mask, pred_mask) in enumerate(zip(self.images, self.true_masks, self.pred_masks)):
-
             image = (image).astype('uint8')
             true_mask = (true_mask).astype('uint8')
             pred_mask = (pred_mask * 255).astype('uint8')
