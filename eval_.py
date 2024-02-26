@@ -5,7 +5,7 @@ from skimage.io import imread
 import logging
 
 class ScoreCalculator:
-    def __init__(self, true_masks_dir, pred_masks_dir, log_file):
+    def __init__(self, true_masks_dir, pred_masks_dir, log_file,score_file):
         self.true_masks_dir = true_masks_dir
         self.pred_masks_dir = pred_masks_dir
         self.accuracy_scores = []
@@ -16,6 +16,7 @@ class ScoreCalculator:
         self.sensitivity_scores = []
         self.specificity_scores = []
         self.log_file = log_file
+        self.score_file = score_file
         logging.basicConfig(filename=self.log_file, level=logging.INFO)
 
     def calculate_scores(self):
@@ -60,8 +61,17 @@ class ScoreCalculator:
         logging.info(f'F1: {np.mean(self.f1_scores)}')
         logging.info(f'Sensitivity: {np.mean(self.sensitivity_scores)}')
         logging.info(f'Specificity: {np.mean(self.specificity_scores)}')
-
+    def write_scores(self):
+        with open(self.score_file, 'w') as f:
+            f.write(f'Accuracy: {np.mean(self.accuracy_scores)}\n')
+            f.write(f'Precision: {np.mean(self.precision_scores)}\n')
+            f.write(f'Jaccard: {np.mean(self.jaccard_scores)}\n')
+            f.write(f'Dice: {np.mean(self.dice_scores)}\n')
+            f.write(f'F1: {np.mean(self.f1_scores)}\n')
+            f.write(f'Sensitivity: {np.mean(self.sensitivity_scores)}\n')
+            f.write(f'Specificity: {np.mean(self.specificity_scores)}\n')
 # Usage:
 score_calculator = ScoreCalculator(true_masks_dir= r'G:\python\3d images\SpineTestPatches4\label', pred_masks_dir= r'G:\python\3d images\SpineTestPatches4\pred', log_file='scores2.log')
 score_calculator.calculate_scores()
 score_calculator.log_scores()
+score_calculator.write_scores()
