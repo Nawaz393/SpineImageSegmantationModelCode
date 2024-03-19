@@ -1,8 +1,8 @@
 import torch
 from torch import optim, nn
-from torch.utils.data import DataLoader , random_split
-from spine_dataset import SpineDataset
-from unet import UNet
+from torch.utils.data import DataLoader, random_split
+from spine_dataset import SpineDataset  
+from unet import UNet  
 from tqdm import tqdm
 import torch_xla
 import torch_xla.core.xla_model as xm
@@ -13,6 +13,17 @@ from sklearn.metrics import jaccard_score
 import glob
 
 def prepare_dataset(data_path, batch_size):
+    """
+    Prepare train and validation datasets.
+
+    Args:
+    - data_path (str): Path to the dataset.
+    - batch_size (int): Batch size for DataLoader.
+
+    Returns:
+    - train_dataloader (DataLoader): DataLoader for training dataset.
+    - val_dataloader (DataLoader): DataLoader for validation dataset.
+    """
     train_dataset = SpineDataset(data_path)
     generator = torch.Generator().manual_seed(42)
     train_dataset, val_dataset = random_split(
@@ -23,14 +34,47 @@ def prepare_dataset(data_path, batch_size):
         dataset=val_dataset, batch_size=batch_size, shuffle=True)
     return train_dataloader, val_dataloader
 
-
 def prepare_model(device):
+    """
+    Prepare UNet model.
+
+    Args:
+    - device (torch.device): Device for model (TPU or GPU).
+
+    Returns:
+    - model (UNet): UNet model.
+    """
     return UNet(in_channels=1, num_classes=1).to(device)
 
 def dice_score(y_true, y_pred, eps=1e-7):
+    """
+    Compute Dice score.
+
+    Args:
+    - y_true (np.ndarray): Ground truth mask.
+    - y_pred (np.ndarray): Predicted mask.
+    - eps (float): Epsilon value to prevent division by zero.
+
+    Returns:
+    - dice_score (float): Dice score.
+    """
     intersection = (y_true * y_pred).sum()
     return (2. * intersection + eps) / (y_true.sum() + y_pred.sum() + eps)
+
 def load_latest_checkpoint(model, optimizer, path):
+    """
+    Load the latest checkpoint.
+
+    Args:
+    - model (torch.nn.Module): Model to load checkpoint weights into.
+    - optimizer (torch.optim.Optimizer): Optimizer to load checkpoint state into.
+    - path (str): Path to checkpoint files.
+
+    Returns:
+    - model (torch.nn.Module): Model with loaded checkpoint weights.
+    - optimizer (torch.optim.Optimizer): Optimizer with loaded checkpoint state.
+    - epoch (int): Epoch from which training should continue.
+    """
     list_of_files = glob.glob(path) 
     if not list_of_files:
         return model, optimizer, 0
@@ -43,6 +87,20 @@ def load_latest_checkpoint(model, optimizer, path):
     return model, optimizer, epoch
 
 def train_func(model, optimizer, criterion, writer, epoch):
+    """
+    Train the model for one epoch.
+
+    Args:
+    - model (torch.nn.Module): Model to train.
+    - optimizer (torch.optim.Optimizer): Optimizer for training.
+    - criterion (torch.nn.Module): Loss function.
+    - writer (SummaryWriter): TensorBoard writer for logging.
+    - epoch (int): Current epoch.
+
+    Returns:
+    - train_loss (float): Average training loss.
+    - batch_train_loss (list): List of training losses for each batch.
+    """
     model.train()
     batch_train_loss = []
     for img_mask in tqdm(train_dataloader):
@@ -51,7 +109,6 @@ def train_func(model, optimizer, criterion, writer, epoch):
         y_pred = model(img)
         optimizer.zero_grad()
         loss = criterion(y_pred, mask)
-        # train_running_loss += loss.item()
         batch_train_loss.append(loss.item())
         loss.backward()
         optimizer.step()
@@ -60,8 +117,24 @@ def train_func(model, optimizer, criterion, writer, epoch):
         writer.add_scalar('BatchLoss/Train', loss, epoch * len(train_dataloader) + i)
     return sum(batch_train_loss) / len(batch_train_loss), batch_train_loss
 
-
 def validation_func(model, criterion, writer, epoch):
+    """
+    Validate the model on validation dataset.
+
+    Args:
+    - model (torch.nn.Module): Model to validate.
+    - criterion (torch.nn.Module): Loss function.
+    - writer (SummaryWriter): TensorBoard writer for logging.
+    - epoch (int): Current epoch.
+
+    Returns:
+    - val_loss (float): Average validation loss.
+    - batch_val_loss (list): List of validation losses for each batch.
+    - val_dice (float): Average Dice score.
+    - batch_val_dice (list): List of Dice scores for each batch.
+    - val_jaccard (float): Average Jaccard score.
+    - batch_val_jaccard (list): List of Jaccard scores for each batch.
+    """
     model.eval()
     batch_val_loss = []
     batch_val_dice = []
@@ -87,8 +160,14 @@ def validation_func(model, criterion, writer, epoch):
     for i, jaccard in enumerate(batch_val_jaccard):
         writer.add_scalar('BatchJaccard/Validation', jaccard, epoch * len(val_dataloader) + i)
 
-    return sum(batch_val_loss) / len(batch_val_loss), batch_val_loss, sum(batch_val_dice) / len(batch_val_dice), batch_val_dice, sum(batch_val_jaccard) / len(batch_val_jaccard), batch_val_jaccard
-
+    return (
+        sum(batch_val_loss) / len(batch_val_loss),
+        batch_val_loss,
+        sum(batch_val_dice) / len(batch_val_dice),
+        batch_val_dice,
+        sum(batch_val_jaccard) / len(batch_val_jaccard),
+        batch_val_jaccard
+    )
 
 if __name__ == "__main__":
     LEARNING_RATE = 3e-4
@@ -99,7 +178,6 @@ if __name__ == "__main__":
     CHECKPOINT_PATH = "./models/Single_SpineSegmentationv6_checkpoint_{epoch}.pth"
     MODEL_SAVE_PATH = "./models/Single_SpineSegmentationv8.pth"  # Update path
 
-    # device = "cuda" if torch.cuda.is_available() else "cpu"
     device = xm.xla_device()
     train_dataloader, val_dataloader = prepare_dataset(
         data_path=DATA_PATH, batch_size=BATCH_SIZE)
@@ -141,20 +219,4 @@ if __name__ == "__main__":
             'optimizer_state_dict': optimizer.state_dict(),
         }, CHECKPOINT_PATH.format(epoch=epoch))
     writer.close()
-    try:
-        loss_data = {
-            'AvgTrainLoss': avg_train_losses,
-            'AvgValLoss': avg_val_losses,
-            'AvgValDice': avg_val_dices,
-            'AvgValJaccard': avg_val_jaccard,
-            'BatchTrainLosses': batch_train_losses,
-            'BatchValLosses': batch_val_losses,
-            'BatchValDice': batch_val_dices,
-            'BatchValJaccard': batch_val_jaccard
-        }
-
-        loss_df = pd.DataFrame(loss_data)
-        loss_df.to_csv('./logs/loss_log.csv', index=False)
-    except Exception as e:
-        print(e)
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
